@@ -29,7 +29,7 @@ Format: *Minimize the time / likelihood / effort to...* Importance is the expect
 | 2 | Minimize the effort to identify which rider each ride belongs to | H |
 | 3 | Minimize the time to see all tracks on a single map | H |
 | 4 | Minimize the time to see each rider's totals (distance, moving time, avg/max speed, elevation) | H |
-| 5 | Minimize the effort to see lean angle stats (max/avg left and right) when present in the data | M |
+| 5 | Minimize the effort to see estimated lean angle and g-forces (lateral, braking, acceleration) derived from the track | M |
 | 6 | Minimize the effort to find which roads riders have in common | H |
 | 7 | Minimize the time to see who was fastest on a shared road segment | H |
 | 8 | Minimize the effort to share the recap with the group | H |
@@ -41,9 +41,10 @@ Format: *Minimize the time / likelihood / effort to...* Importance is the expect
 **In**
 - Create a trip; access is by unlisted link only (no accounts). Visitors choose a display name.
 - Each rider can upload their own GPX files, or an organizer can upload on behalf of others (assign rides to a rider).
-- Parse Calimoto GPX, including extension data (e.g. lean angle) when present.
+- Parse Calimoto GPX. Exports contain only lat, lon, elevation and timestamp per point (see "Data findings"); everything else is derived.
 - Map rendering of all tracks (MapLibre + OSM tiles), colored per rider.
-- Per-rider stats: distance, moving time, avg/max speed, elevation gain, lean angle when available.
+- Per-rider stats: distance, moving time, avg/max speed, elevation gain.
+- Derived 3D velocity and acceleration vectors, g-forces (lateral, braking, acceleration) and an estimated lean angle (`atan(lateral g)`, an approximation that assumes steady-state cornering).
 - Whole-ride comparison between riders.
 - Shared road segment matching and per-segment comparison (time/speed).
 
@@ -58,8 +59,16 @@ Format: *Minimize the time / likelihood / effort to...* Importance is the expect
 - MapLibre GL with OpenStreetMap tiles
 - Liveblocks (post v0.1)
 
+## Data findings (from `samples/calimoto-ride-2026-10-24.gpx`)
+- Each `<trkpt>` has only `lat`, `lon`, `<ele>` and `<time>` (with UTC offset). No `<extensions>`: no speed, heading or measured lean angle.
+- One `<trkseg>`; ~1 s sampling (median) but with gaps (57 gaps over 5 s, longest 636 s) that must be treated as breaks, not interpolated.
+- Elevation is coarse (734 distinct values over 10,590 points) and noisy, so vertical velocity and acceleration are the least reliable.
+- `<metadata><author><name>` holds the Calimoto username; treat as PII-adjacent and don't display it by default.
+- Derived-metric feasibility (central differences over a 5-9 point smoothing window, one ride): p99 total acceleration ~0.5 g, p99 lateral ~0.25-0.3 g, estimated lean p99 ~14-17 deg, max ~25-28 deg. Without gap handling and outlier rejection, raw speed peaks are implausible (up to ~180 km/h), so the pipeline must split on gaps and clamp or reject outliers.
+
 ## Open questions
-- Exact extension fields in Calimoto GPX exports (a sanitized sample will be added to the repo).
+- Whether other Calimoto export types include extension fields (lean angle, speed).
+- Accuracy of estimated lean angle versus real sensor data.
 - Segment matching approach (map-matching to OSM vs. geometric proximity of tracks).
 - Privacy handling of start/end locations.
 - Handling of large files and many rides per trip.
